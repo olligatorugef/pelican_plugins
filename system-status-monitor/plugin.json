@@ -6,7 +6,7 @@
     "description": "Monitor and display real-time system information including CPU, memory, disk usage, and server uptime",
     "category": "plugin",
     "url": "https://github.com/olligatorugef/pelican_plugins/tree/main/system-status-monitor",
-    "update_url": "https://raw.githubusercontent.com/olligatorugef/pelican_plugins/main/system-status-monitor/update.json",
+    "update_url": "https://raw.githubusercontent.com/olligatorugef/pelican_plugins/main/Update/system-status-monitor/update.json",
     "namespace": "Xolli\\SystemStatusMonitor",
     "class": "SystemStatusMonitorPlugin",
     "panels": [
