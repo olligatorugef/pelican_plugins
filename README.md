@@ -4,12 +4,12 @@ A real-time system monitoring plugin for Pelican Panel. Display CPU, memory, dis
 
 ## Features
 
-- 💻 **CPU** - Usage percentage with model and cores
-- 🧠 **Memory** - RAM and Swap with progress bars
-- 💾 **Disk** - Space used, total, and free
-- 📈 **Load Average** - System load (1, 5, 15 min)
-- ⏱️ **Uptime** - Server uptime and last reboot
-- 🖥️ **System Info** - OS, PHP, Hostname, Processes
+- **CPU** - Usage percentage with model and cores
+- **Memory** - RAM and Swap with progress bars
+- **Disk** - Space used, total, and free
+- **Load Average** - System load (1, 5, 15 min)
+- **Uptime** - Server uptime and last reboot
+- **System Info** - OS, PHP, Hostname, Processes
 
 ## What's Included
 
