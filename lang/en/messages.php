@@ -4,6 +4,7 @@ return [
     'navigation_label' => 'System Status',
 
     'titles' => [
+        'widget_title' => 'System Status',
         'cpu_usage' => 'CPU Usage',
         'cpu_details' => 'CPU Details',
         'memory_usage' => 'Memory Usage',
