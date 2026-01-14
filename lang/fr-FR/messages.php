@@ -4,6 +4,7 @@ return [
     'navigation_label' => 'État Système',
 
     'titles' => [
+        'widget_title' => 'État Système',
         'cpu_usage' => 'Utilisation CPU',
         'cpu_details' => 'Détails CPU',
         'memory_usage' => 'Utilisation Mémoire',
