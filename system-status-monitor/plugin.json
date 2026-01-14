@@ -1,0 +1,15 @@
+{
+    "id": "system-status-monitor",
+    "name": "System Status Monitor",
+    "author": "X_olli",
+    "version": "1.0.0",
+    "description": "Monitor and display real-time system information including CPU, memory, disk usage, and server uptime",
+    "category": "plugin",
+    "url": "https://github.com/olligatorugef/pelican_plugins/tree/main/system-status-monitor",
+    "namespace": "Xolli\\SystemStatusMonitor",
+    "class": "SystemStatusMonitorPlugin",
+    "panels": [
+        "admin"
+    ],
+    "panel_version": "^1.0.0-beta30"
+}
