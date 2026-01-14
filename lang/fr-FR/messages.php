@@ -14,10 +14,15 @@ return [
         'uptime' => 'Temps de Fonctionnement',
         'performance' => 'Performance',
         'process_info' => 'Informations Processus',
+        'cpu_description' => 'Informations CPU en temps réel',
+        'memory_description' => 'Statistiques RAM et Mémoire Virtuelle',
+        'disk_description' => 'Informations d\'espace disque',
+        'system_description' => 'Détails et informations système',
     ],
 
     'labels' => [
         'os' => 'Système d\'Exploitation',
+        'hostname' => 'Nom d\'Hôte',
         'php_version' => 'Version PHP',
         'cores' => 'Cœurs',
         'threads' => 'Threads',
