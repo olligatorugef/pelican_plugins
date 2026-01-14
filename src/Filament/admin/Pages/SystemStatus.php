@@ -44,12 +44,12 @@ class SystemStatus extends Page
 
     public static function getNavigationLabel(): string
     {
-        return __('system-status-monitor::messages.navigation_label');
+        return __("system-status-monitor::messages.navigation_label");
     }
 
     public function getTitle(): string
     {
-        return __('system-status-monitor::messages.titles.system_info');
+        return __("system-status-monitor::messages.titles.system_info");
     }
 
     protected function getViewData(): array
