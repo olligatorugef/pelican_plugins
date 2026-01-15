@@ -117,15 +117,27 @@
                 </div>
 
                 <!-- CPU Usage Progress -->
-                <div class="space-y-2">
+                @php
+                    $cpuStatus = $data['cpu'] > 80 ? 'danger' : ($data['cpu'] > 60 ? 'warning' : 'success');
+                    $cpuColor = $cpuStatus === 'danger' ? 'rgb(220, 38, 38)' : ($cpuStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
+                    $cpuLightBg = "color-mix(in srgb, {$cpuColor} 15%, transparent)";
+                @endphp
+                <div class="space-y-3">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium">{{ $t['titles']['cpu_usage'] }}</span>
                         <span class="text-sm font-bold">{{ $data['cpu'] }}%</span>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                        <div 
-                            class="h-2 rounded-full transition-all"
-                            style="width: {{ $data['cpu'] }}%; background-color: {{ $data['cpu'] > 80 ? '#dc2626' : ($data['cpu'] > 60 ? '#f59e0b' : '#059669') }}"
+                    <div
+                        class="relative rounded-full overflow-hidden w-full"
+                        style="height: 0.725rem; background-color: {{ $cpuLightBg }};"
+                        role="progressbar"
+                        aria-valuenow="{{ $data['cpu'] }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                    >
+                        <div
+                            class="h-full rounded-full transition-all duration-300 ease-in-out"
+                            style="width: {{ $data['cpu'] }}%; background-color: {{ $cpuColor }};"
                         ></div>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -169,15 +181,27 @@
 
             <div class="space-y-6">
                 <!-- Physical Memory -->
+                @php
+                    $memStatus = $data['memory']['percent'] > 80 ? 'danger' : ($data['memory']['percent'] > 60 ? 'warning' : 'success');
+                    $memColor = $memStatus === 'danger' ? 'rgb(220, 38, 38)' : ($memStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
+                    $memLightBg = "color-mix(in srgb, {$memColor} 15%, transparent)";
+                @endphp
                 <div class="space-y-3">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium">{{ $t['labels']['memory'] }}</span>
                         <span class="text-xs text-gray-500 dark:text-gray-400">{{ $data['memory']['used'] }} / {{ $data['memory']['total'] }}</span>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                        <div 
-                            class="h-2 rounded-full transition-all"
-                            style="width: {{ $data['memory']['percent'] }}%; background-color: {{ $data['memory']['percent'] > 80 ? '#dc2626' : ($data['memory']['percent'] > 60 ? '#f59e0b' : '#059669') }}"
+                    <div
+                        class="relative rounded-full overflow-hidden w-full"
+                        style="height: 0.725rem; background-color: {{ $memLightBg }};"
+                        role="progressbar"
+                        aria-valuenow="{{ $data['memory']['percent'] }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                    >
+                        <div
+                            class="h-full rounded-full transition-all duration-300 ease-in-out"
+                            style="width: {{ $data['memory']['percent'] }}%; background-color: {{ $memColor }};"
                         ></div>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -186,15 +210,27 @@
                 </div>
 
                 <!-- Swap Memory -->
+                @php
+                    $swapStatus = $data['swap']['percent'] > 50 ? 'warning' : 'success';
+                    $swapColor = $swapStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)';
+                    $swapLightBg = "color-mix(in srgb, {$swapColor} 15%, transparent)";
+                @endphp
                 <div class="space-y-3">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium">{{ $t['labels']['swap_memory'] }}</span>
                         <span class="text-xs text-gray-500 dark:text-gray-400">{{ $data['swap']['used'] }} / {{ $data['swap']['total'] }}</span>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                        <div 
-                            class="h-2 rounded-full transition-all"
-                            style="width: {{ $data['swap']['percent'] }}%; background-color: {{ $data['swap']['percent'] > 50 ? '#f59e0b' : '#059669' }}"
+                    <div
+                        class="relative rounded-full overflow-hidden w-full"
+                        style="height: 0.725rem; background-color: {{ $swapLightBg }};"
+                        role="progressbar"
+                        aria-valuenow="{{ $data['swap']['percent'] }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                    >
+                        <div
+                            class="h-full rounded-full transition-all duration-300 ease-in-out"
+                            style="width: {{ $data['swap']['percent'] }}%; background-color: {{ $swapColor }};"
                         ></div>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -235,15 +271,27 @@
                 </div>
 
                 <!-- Disk Usage Progress -->
+                @php
+                    $diskStatus = $data['disk']['percent'] > 80 ? 'danger' : ($data['disk']['percent'] > 60 ? 'warning' : 'success');
+                    $diskColor = $diskStatus === 'danger' ? 'rgb(220, 38, 38)' : ($diskStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
+                    $diskLightBg = "color-mix(in srgb, {$diskColor} 15%, transparent)";
+                @endphp
                 <div class="space-y-3">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium">{{ $t['titles']['disk_usage'] }}</span>
                         <span class="text-sm font-bold">{{ $data['disk']['percent'] }}%</span>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                        <div 
-                            class="h-2 rounded-full transition-all"
-                            style="width: {{ $data['disk']['percent'] }}%; background-color: {{ $data['disk']['percent'] > 80 ? '#dc2626' : ($data['disk']['percent'] > 60 ? '#f59e0b' : '#059669') }}"
+                    <div
+                        class="relative rounded-full overflow-hidden w-full"
+                        style="height: 0.725rem; background-color: {{ $diskLightBg }};"
+                        role="progressbar"
+                        aria-valuenow="{{ $data['disk']['percent'] }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                    >
+                        <div
+                            class="h-full rounded-full transition-all duration-300 ease-in-out"
+                            style="width: {{ $data['disk']['percent'] }}%; background-color: {{ $diskColor }};"
                         ></div>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">

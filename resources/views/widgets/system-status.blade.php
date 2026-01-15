@@ -16,43 +16,79 @@
         @else
             <div class="space-y-4">
                 <!-- CPU Metric -->
+                @php
+                    $cpuStatus = $cpu > 80 ? 'danger' : ($cpu > 60 ? 'warning' : 'success');
+                    $cpuColor = $cpuStatus === 'danger' ? 'rgb(220, 38, 38)' : ($cpuStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
+                    $cpuLightBg = "color-mix(in srgb, {$cpuColor} 15%, transparent)";
+                @endphp
                 <div class="space-y-2">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium">CPU</span>
                         <span class="text-sm font-bold">{{ $cpu }}%</span>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                            class="h-1.5 rounded-full transition-all"
-                            style="width: {{ $cpu }}%; background-color: {{ $cpu > 80 ? '#dc2626' : ($cpu > 60 ? '#f59e0b' : '#059669') }}"
+                    <div
+                        class="relative rounded-full overflow-hidden w-full"
+                        style="height: 0.725rem; background-color: {{ $cpuLightBg }};"
+                        role="progressbar"
+                        aria-valuenow="{{ $cpu }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                    >
+                        <div
+                            class="h-full rounded-full transition-all duration-300 ease-in-out"
+                            style="width: {{ $cpu }}%; background-color: {{ $cpuColor }};"
                         ></div>
                     </div>
                 </div>
 
                 <!-- Memory Metric -->
+                @php
+                    $memStatus = $memory['percent'] > 80 ? 'danger' : ($memory['percent'] > 60 ? 'warning' : 'success');
+                    $memColor = $memStatus === 'danger' ? 'rgb(220, 38, 38)' : ($memStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
+                    $memLightBg = "color-mix(in srgb, {$memColor} 15%, transparent)";
+                @endphp
                 <div class="space-y-2">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium">Memory</span>
                         <span class="text-sm font-bold">{{ $memory['percent'] }}%</span>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                            class="h-1.5 rounded-full transition-all"
-                            style="width: {{ $memory['percent'] }}%; background-color: {{ $memory['percent'] > 80 ? '#dc2626' : ($memory['percent'] > 60 ? '#f59e0b' : '#059669') }}"
+                    <div
+                        class="relative rounded-full overflow-hidden w-full"
+                        style="height: 0.725rem; background-color: {{ $memLightBg }};"
+                        role="progressbar"
+                        aria-valuenow="{{ $memory['percent'] }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                    >
+                        <div
+                            class="h-full rounded-full transition-all duration-300 ease-in-out"
+                            style="width: {{ $memory['percent'] }}%; background-color: {{ $memColor }};"
                         ></div>
                     </div>
                 </div>
 
                 <!-- Disk Metric -->
+                @php
+                    $diskStatus = $disk['percent'] > 80 ? 'danger' : ($disk['percent'] > 60 ? 'warning' : 'success');
+                    $diskColor = $diskStatus === 'danger' ? 'rgb(220, 38, 38)' : ($diskStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
+                    $diskLightBg = "color-mix(in srgb, {$diskColor} 15%, transparent)";
+                @endphp
                 <div class="space-y-2">
                     <div class="flex justify-between items-center">
                         <span class="text-sm font-medium">Disk</span>
                         <span class="text-sm font-bold">{{ $disk['percent'] }}%</span>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                            class="h-1.5 rounded-full transition-all"
-                            style="width: {{ $disk['percent'] }}%; background-color: {{ $disk['percent'] > 80 ? '#dc2626' : ($disk['percent'] > 60 ? '#f59e0b' : '#059669') }}"
+                    <div
+                        class="relative rounded-full overflow-hidden w-full"
+                        style="height: 0.725rem; background-color: {{ $diskLightBg }};"
+                        role="progressbar"
+                        aria-valuenow="{{ $disk['percent'] }}"
+                        aria-valuemin="0"
+                        aria-valuemax="100"
+                    >
+                        <div
+                            class="h-full rounded-full transition-all duration-300 ease-in-out"
+                            style="width: {{ $disk['percent'] }}%; background-color: {{ $diskColor }};"
                         ></div>
                     </div>
                 </div>
