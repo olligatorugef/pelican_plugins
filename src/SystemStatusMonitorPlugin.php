@@ -4,8 +4,8 @@ namespace Xolli\SystemStatusMonitor;
 
 use Filament\Contracts\Plugin;
 use Filament\Panel;
-use Xolli\SystemStatusMonitor\Filament\admin\Pages\SystemStatus;
-use Xolli\SystemStatusMonitor\Filament\admin\Widgets\SystemStatusWidget;
+use Xolli\SystemStatusMonitor\Filament\Admin\Pages\SystemStatus;
+use Xolli\SystemStatusMonitor\Filament\Admin\Widgets\SystemStatusWidget;
 
 class SystemStatusMonitorPlugin implements Plugin
 {
