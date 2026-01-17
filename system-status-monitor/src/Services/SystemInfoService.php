@@ -316,20 +316,26 @@ class SystemInfoService
      */
     public static function getSystemInfo(): array
     {
+        $cpuInfo = self::getLoadAverage();
+        $loadAverage = [
+            '1min' => $cpuInfo['1'] ?? 0,
+            '5min' => $cpuInfo['5'] ?? 0,
+            '15min' => $cpuInfo['15'] ?? 0,
+        ];
+        
         return [
-            'cpu' => [
-                'usage' => self::getCpuUsage(),
-                'cores' => self::getCpuCores(),
-                'model' => self::getCpuModel(),
-                'load' => self::getLoadAverage(),
-            ],
+            'cpu' => self::getCpuUsage(),
+            'cpu_cores' => self::getCpuCores(),
+            'cpu_model' => self::getCpuModel(),
             'memory' => self::getMemoryUsage(),
             'swap' => self::getSwapMemory(),
             'disk' => self::getDiskUsage(),
+            'load' => $loadAverage,
             'uptime' => self::getUptime(),
-            'lastReboot' => self::getLastReboot(),
+            'last_reboot' => self::getLastReboot(),
             'processes' => self::getProcessCount(),
             'hostname' => self::getHostname(),
+            'os' => php_uname('s'),
         ];
     }
 
