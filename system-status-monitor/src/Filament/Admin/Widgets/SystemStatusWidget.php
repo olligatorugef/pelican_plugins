@@ -9,25 +9,26 @@ class SystemStatusWidget extends Widget
 {
     protected static ?int $sort = 1;
 
-    protected static bool $isLazy = false;
+    protected int | string | array $columnSpan = 'full';
 
-    protected string $view = 'system-status-monitor::widgets.system-status';
+    protected static string $view = 'system-status-monitor::widgets.system-status';
 
-    protected function getViewData(): array
+    public array $data = [];
+
+    public function mount(): void
     {
         try {
-            $systemInfo = SystemInfoService::getSystemInfo();
-
-            return [
-                'cpu' => $systemInfo['cpu'],
-                'memory' => $systemInfo['memory'],
-                'disk' => $systemInfo['disk'],
-                'load' => $systemInfo['load'],
-                'uptime' => $systemInfo['uptime'],
+            $info = SystemInfoService::getSystemInfo();
+            $this->data = [
+                'cpu' => $info['cpu']['usage'] ?? 0,
+                'memory' => $info['memory'] ?? ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
+                'disk' => $info['disk'] ?? ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
             ];
         } catch (\Exception $e) {
-            return [
-                'error' => 'Unable to retrieve system information',
+            $this->data = [
+                'cpu' => 0,
+                'memory' => ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
+                'disk' => ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
             ];
         }
     }
