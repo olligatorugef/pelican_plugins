@@ -1,0 +1,10 @@
+{
+    "name": "xolli/system-status-monitor",
+    "description": "System Status Monitor plugin for Pelican Panel",
+    "type": "library",
+    "autoload": {
+        "psr-4": {
+            "Xolli\\SystemStatusMonitor\\": "src/"
+        }
+    }
+}
