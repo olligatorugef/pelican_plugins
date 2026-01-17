@@ -21,8 +21,8 @@ class SystemInfoService
     private static function getCpuUsageLinux(): float
     {
         try {
-            $output = shell_exec('top -b -n 1 | grep "Cpu(s)"');
-            if ($output && preg_match('/(\d+\.\d+)%\s*us/', $output, $matches)) {
+            $output = shell_exec('top -bn1 | grep "Cpu(s)"');
+            if ($output && preg_match('/(\d+\.?\d*)\s*%us/', $output, $matches)) {
                 return (float)$matches[1];
             }
         } catch (\Exception $e) {
@@ -37,8 +37,8 @@ class SystemInfoService
     private static function getCpuUsageWindows(): float
     {
         try {
-            $output = shell_exec('wmic os get loadpercentage');
-            if ($output && preg_match('/(\d+)/', $output, $matches)) {
+            $output = shell_exec('wmic os get processorcount');
+            if (preg_match('/(\d+)/', $output, $matches)) {
                 return (float)$matches[1];
             }
         } catch (\Exception $e) {
@@ -48,23 +48,42 @@ class SystemInfoService
     }
 
     /**
-     * Get number of CPU cores
+     * Get CPU cores count
      */
     public static function getCpuCores(): int
     {
-        $cores = shell_exec('nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null');
-        return (int)trim($cores) ?: 1;
+        try {
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                $output = shell_exec('wmic os get numberofprocessors');
+                if (preg_match('/(\d+)/', $output, $matches)) {
+                    return (int)$matches[1];
+                }
+            } else {
+                $output = shell_exec('nproc');
+                if ($output) {
+                    return (int)trim($output);
+                }
+            }
+        } catch (\Exception $e) {
+            return 1;
+        }
+        return 1;
     }
 
     /**
-     * Get CPU model name
+     * Get CPU model
      */
     public static function getCpuModel(): string
     {
         try {
-            if (file_exists('/proc/cpuinfo')) {
-                $cpuinfo = file_get_contents('/proc/cpuinfo');
-                if (preg_match('/model name\s*:\s*(.+)/i', $cpuinfo, $matches)) {
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                $output = shell_exec('wmic cpu get name');
+                if (preg_match('/Intel|AMD|ARM/', $output, $matches)) {
+                    return trim(str_replace('Name', '', $output));
+                }
+            } else {
+                $output = shell_exec("cat /proc/cpuinfo | grep 'model name' | head -1");
+                if ($output && preg_match('/:\s*(.+)/', $output, $matches)) {
                     return trim($matches[1]);
                 }
             }
@@ -93,8 +112,8 @@ class SystemInfoService
         try {
             $output = shell_exec('free -b | grep Mem');
             if ($output && preg_match('/(\d+)\s+(\d+)/', $output, $matches)) {
-                $total = (int)$matches[1] + (int)$matches[2];
-                $used = (int)$matches[1];
+                $total = (int)$matches[1];
+                $used = (int)$matches[2];
                 $percent = $total > 0 ? round(($used / $total) * 100, 2) : 0;
                 return [
                     'used' => self::formatBytes($used),
@@ -140,8 +159,8 @@ class SystemInfoService
         try {
             $output = shell_exec('free -b | grep Swap');
             if ($output && preg_match('/(\d+)\s+(\d+)/', $output, $matches)) {
-                $total = (int)$matches[1] + (int)$matches[2];
-                $used = (int)$matches[1];
+                $total = (int)$matches[1];
+                $used = (int)$matches[2];
                 $percent = $total > 0 ? round(($used / $total) * 100, 2) : 0;
                 return [
                     'used' => self::formatBytes($used),
@@ -158,7 +177,7 @@ class SystemInfoService
     /**
      * Get disk usage
      */
-    public static function getDiskUsage(string $path = '/'): array
+    public static function getDiskUsage($path = '/'): array
     {
         try {
             $total = disk_total_space($path);
@@ -182,12 +201,20 @@ class SystemInfoService
      */
     public static function getLoadAverage(): array
     {
-        $load = sys_getloadavg();
-        return [
-            '1min' => round($load[0], 2),
-            '5min' => round($load[1], 2),
-            '15min' => round($load[2], 2),
-        ];
+        try {
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                return ['1' => 0, '5' => 0, '15' => 0];
+            }
+
+            $loads = sys_getloadavg();
+            return [
+                '1' => round($loads[0], 2),
+                '5' => round($loads[1], 2),
+                '15' => round($loads[2], 2),
+            ];
+        } catch (\Exception $e) {
+            return ['1' => 0, '5' => 0, '15' => 0];
+        }
     }
 
     /**
@@ -196,17 +223,28 @@ class SystemInfoService
     public static function getUptime(): string
     {
         try {
-            $uptime = (int)shell_exec('cat /proc/uptime | awk \'{print $1}\'');
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                $output = shell_exec('wmic os get lastbootuptime');
+                if (preg_match('/(\d{14})/', $output, $matches)) {
+                    $timestamp = strtotime($matches[1]);
+                    $uptime = time() - $timestamp;
+                } else {
+                    return 'Unknown';
+                }
+            } else {
+                $output = shell_exec('cat /proc/uptime');
+                if ($output && preg_match('/(\d+)/', $output, $matches)) {
+                    $uptime = (int)$matches[1];
+                } else {
+                    return 'Unknown';
+                }
+            }
+
             $days = floor($uptime / 86400);
             $hours = floor(($uptime % 86400) / 3600);
             $minutes = floor(($uptime % 3600) / 60);
 
-            $result = [];
-            if ($days > 0) $result[] = "$days d";
-            if ($hours > 0) $result[] = "$hours h";
-            if ($minutes > 0) $result[] = "$minutes m";
-
-            return implode(' ', $result) ?: '0 m';
+            return "{$days}d {$hours}h {$minutes}m";
         } catch (\Exception $e) {
             return 'Unknown';
         }
@@ -218,12 +256,25 @@ class SystemInfoService
     public static function getLastReboot(): string
     {
         try {
-            $uptime = (int)shell_exec('cat /proc/uptime | awk \'{print $1}\'');
-            $lastReboot = time() - $uptime;
-            return date('d/m/Y H:i:s', $lastReboot);
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                $output = shell_exec('wmic os get lastbootuptime');
+                if (preg_match('/(\d{14})/', $output, $matches)) {
+                    $timestamp = strtotime($matches[1]);
+                    return date('Y-m-d H:i:s', $timestamp);
+                }
+            } else {
+                $output = shell_exec('who -b');
+                if ($output) {
+                    preg_match('/(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})/', $output, $matches);
+                    if (isset($matches[1])) {
+                        return $matches[1];
+                    }
+                }
+            }
         } catch (\Exception $e) {
             return 'Unknown';
         }
+        return 'Unknown';
     }
 
     /**
@@ -232,50 +283,60 @@ class SystemInfoService
     public static function getProcessCount(): array
     {
         try {
-            $total = (int)shell_exec('ps aux | wc -l');
-            return [
-                'total' => $total - 1,
-                'running' => $total - 1,
-            ];
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                $total = shell_exec('wmic process list brief | find /c /v ""');
+                return ['total' => (int)$total, 'running' => (int)$total];
+            } else {
+                $output = shell_exec('ps aux | wc -l');
+                $total = (int)$output - 2;
+
+                $running = shell_exec("ps aux | grep -c ' S '");
+
+                return ['total' => max(0, $total), 'running' => max(0, (int)$running)];
+            }
         } catch (\Exception $e) {
             return ['total' => 0, 'running' => 0];
         }
     }
 
     /**
-     * Get hostname
+     * Get system hostname
      */
     public static function getHostname(): string
     {
-        return gethostname() ?: 'Unknown';
+        try {
+            return gethostname() ?: 'Unknown';
+        } catch (\Exception $e) {
+            return 'Unknown';
+        }
     }
 
     /**
-     * Get system information
+     * Get all system info
      */
     public static function getSystemInfo(): array
     {
         return [
-            'cpu' => self::getCpuUsage(),
-            'cpu_cores' => self::getCpuCores(),
-            'cpu_model' => self::getCpuModel(),
+            'cpu' => [
+                'usage' => self::getCpuUsage(),
+                'cores' => self::getCpuCores(),
+                'model' => self::getCpuModel(),
+                'load' => self::getLoadAverage(),
+            ],
             'memory' => self::getMemoryUsage(),
             'swap' => self::getSwapMemory(),
             'disk' => self::getDiskUsage(),
-            'load' => self::getLoadAverage(),
             'uptime' => self::getUptime(),
-            'last_reboot' => self::getLastReboot(),
+            'lastReboot' => self::getLastReboot(),
             'processes' => self::getProcessCount(),
             'hostname' => self::getHostname(),
-            'os' => php_uname('s'),
-            'php_version' => phpversion(),
         ];
     }
 
     /**
-     * Format bytes to human readable format
+     * Format bytes to human-readable format
      */
-    public static function formatBytes(int $bytes, int $precision = 2): string
+    public static function formatBytes($bytes, $precision = 2): string
     {
         $units = ['B', 'KB', 'MB', 'GB', 'TB'];
         $bytes = max($bytes, 0);
