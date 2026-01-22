@@ -3,7 +3,7 @@
     "name": "Minecraft Mod/Plugin Installer",
     "author": "X_olli",
     "version": "1.0.0",
-    "description": "The \u201cMinecraft Mod/Plugin Installer\u201d plugin is used to easily install mods and plugins via CurseForge and Modrinth.",
+    "description": "The Minecraft Mod/Plugin Installer plugin is used to easily install mods and plugins via CurseForge and Modrinth.",
     "category": "plugin",
     "url": "https://github.com/olligatorugef/pelican_plugins/tree/main/Minecraft-Mod-Plugin-Installer",
     "update_url": "https://github.com/olligatorugef/pelican_plugins/blob/main/Update/Minecraft-Mod-Plugin-Installer/update.json",
@@ -11,5 +11,5 @@
     "class": "MinecraftModPluginInstallerPlugin",
     "panels": null,
     "panel_version": "1.0.0-beta31",
-    "composer_packages": null,
+    "composer_packages": null
 }
