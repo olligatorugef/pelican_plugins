@@ -11,5 +11,4 @@
     "class": "SystemStatusMonitorPlugin",
     "panel_version": "^1.0.0-beta30",
     "license": "MIT"
-    ]
 }
