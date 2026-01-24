@@ -10,5 +10,11 @@
     "namespace": "Xolli\\SystemStatusMonitor",
     "class": "SystemStatusMonitorPlugin",
     "panel_version": "^1.0.0-beta30",
-    "license": "MIT"
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "X_olli",
+            "homepage": "https://github.com/olligatorugef"
+        }
+    ]
 }
