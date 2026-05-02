@@ -11,7 +11,7 @@ return [
         'disk_usage' => 'Disk Usage',
         'load_average' => 'Load Average',
         'system_info' => 'System Information',
-        'uptime' => 'Uptime',
+        'uptime' => 'Server Uptime',
         'performance' => 'Performance',
         'process_info' => 'Process Information',
         'cpu_description' => 'Real-time CPU information',
@@ -48,7 +48,7 @@ return [
         'good' => 'Good',
         'warning' => 'Warning',
         'critical' => 'Critical',
-        'online' => 'Online',
+        'online' => 'Server Online',
         'unavailable' => 'Unavailable',
     ],
 ];

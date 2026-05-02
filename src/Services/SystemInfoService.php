@@ -16,29 +16,108 @@ class SystemInfoService
     }
 
     /**
-     * Get CPU usage for Linux
+     * Get CPU usage for Linux using /proc/stat
      */
     private static function getCpuUsageLinux(): float
     {
         try {
-            $output = shell_exec('top -bn1 | grep "Cpu(s)"');
-            if ($output && preg_match('/(\d+\.?\d*)\s*%us/', $output, $matches)) {
-                return (float)$matches[1];
-            }
+            // Try /proc/stat method first
+            return self::getCpuUsageFromProcStat();
         } catch (\Exception $e) {
-            return 0;
+            // Fallback to top command
+            try {
+                $output = shell_exec('top -bn2 -d 0.5 | grep "Cpu(s)"');
+                if ($output) {
+                    // Try multiple regex patterns
+                    if (preg_match('/(\d+\.?\d*)\s*%us/', $output, $matches)) {
+                        return (float)$matches[1];
+                    }
+                    if (preg_match('/us,\s*(\d+\.?\d*)/', $output, $matches)) {
+                        return (float)$matches[1];
+                    }
+                }
+            } catch (\Exception $e2) {
+                // Final fallback
+                try {
+                    $output = shell_exec('ps aux | awk \'BEGIN{sum=0} {sum+=$3} END{print sum}\'');
+                    if ($output) {
+                        return min((float)$output, 100.0);
+                    }
+                } catch (\Exception $e3) {
+                    return 0;
+                }
+            }
         }
         return 0;
     }
 
     /**
-     * Get CPU usage for Windows
+     * Get CPU usage from /proc/stat (most accurate method)
+     */
+    private static function getCpuUsageFromProcStat(): float
+    {
+        if (!file_exists('/proc/stat')) {
+            throw new \Exception('/proc/stat not available');
+        }
+
+        $stat1 = file_get_contents('/proc/stat');
+        sleep(1);
+        $stat2 = file_get_contents('/proc/stat');
+
+        $cpu1 = self::parseProcStat($stat1);
+        $cpu2 = self::parseProcStat($stat2);
+
+        if ($cpu1 === null || $cpu2 === null) {
+            throw new \Exception('Failed to parse /proc/stat');
+        }
+
+        $active1 = $cpu1['user'] + $cpu1['nice'] + $cpu1['system'];
+        $total1 = $active1 + $cpu1['idle'] + $cpu1['iowait'];
+
+        $active2 = $cpu2['user'] + $cpu2['nice'] + $cpu2['system'];
+        $total2 = $active2 + $cpu2['idle'] + $cpu2['iowait'];
+
+        $activeDelta = $active2 - $active1;
+        $totalDelta = $total2 - $total1;
+
+        if ($totalDelta == 0) {
+            return 0;
+        }
+
+        return round(($activeDelta / $totalDelta) * 100, 2);
+    }
+
+    /**
+     * Parse /proc/stat line
+     */
+    private static function parseProcStat($content): ?array
+    {
+        $lines = explode("\n", $content);
+        foreach ($lines as $line) {
+            if (strpos($line, 'cpu ') === 0) {
+                $parts = preg_split('/\s+/', trim($line));
+                if (count($parts) >= 5) {
+                    return [
+                        'user' => (int)$parts[1],
+                        'nice' => (int)$parts[2],
+                        'system' => (int)$parts[3],
+                        'idle' => (int)$parts[4],
+                        'iowait' => isset($parts[5]) ? (int)$parts[5] : 0,
+                    ];
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get CPU usage for Windows using WMI PercentProcessorTime
      */
     private static function getCpuUsageWindows(): float
     {
         try {
-            $output = shell_exec('wmic os get processorcount');
-            if (preg_match('/(\d+)/', $output, $matches)) {
+            $output = shell_exec('wmic path win32_perfformatteddata_perfos_processor where name="Total" get PercentProcessorTime /value');
+            if ($output && preg_match('/PercentProcessorTime=(\d+)/', $output, $matches)) {
                 return (float)$matches[1];
             }
         } catch (\Exception $e) {
