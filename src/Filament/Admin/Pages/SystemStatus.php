@@ -1,8 +1,9 @@
 <?php
 
-namespace Xolli\SystemStatusMonitor\Filament\admin\Pages;
+namespace Xolli\SystemStatusMonitor\Filament\Admin\Pages;
 
 use Filament\Pages\Page;
+use Xolli\SystemStatusMonitor\Services\NodeStatsService;
 use Xolli\SystemStatusMonitor\Services\SystemInfoService;
 
 class SystemStatus extends Page
@@ -11,30 +12,46 @@ class SystemStatus extends Page
 
     protected static bool $shouldRegisterNavigation = true;
 
+    protected static ?string $slug = 'system-status';
+
+    /** @var array<string, mixed> */
     public array $data = [];
+
+    /** @var array<int, array<string, mixed>> */
+    public array $nodes = [];
+
+    public string $nodesError = '';
 
     public function mount(): void
     {
+        $this->refreshData();
+    }
+
+    public function refreshData(): void
+    {
         try {
             $this->data = SystemInfoService::getSystemInfo();
-        } catch (\Exception $e) {
-            $this->data = [
-                'error' => 'Unable to retrieve system information: ' . $e->getMessage(),
-                'cpu' => 0,
-                'cpu_cores' => 0,
-                'cpu_model' => 'Unknown',
-                'memory' => ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
-                'swap' => ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
-                'disk' => ['used' => 'N/A', 'total' => 'N/A', 'free' => 'N/A', 'percent' => 0],
-                'load' => ['1min' => 0, '5min' => 0, '15min' => 0],
-                'uptime' => 'Unknown',
-                'last_reboot' => 'Unknown',
-                'processes' => ['total' => 0],
-                'hostname' => 'Unknown',
-                'os' => 'Unknown',
-                'php_version' => phpversion(),
-            ];
+        } catch (\Throwable $e) {
+            $this->data = ['error' => 'Unable to retrieve system information: ' . $e->getMessage()];
         }
+
+        $this->nodesError = '';
+        $this->nodes = [];
+
+        if (static::canViewNodes()) {
+            try {
+                $this->nodes = NodeStatsService::all();
+            } catch (\Throwable $e) {
+                $this->nodesError = $e->getMessage();
+            }
+        }
+    }
+
+    public static function canViewNodes(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->can('viewList node');
     }
 
     public static function getNavigationIcon(): ?string
@@ -44,18 +61,20 @@ class SystemStatus extends Page
 
     public static function getNavigationLabel(): string
     {
-        return __("system-status-monitor::messages.navigation_label");
+        return __('system-status-monitor::messages.navigation_label');
     }
 
     public function getTitle(): string
     {
-        return __("system-status-monitor::messages.titles.system_info");
+        return __('system-status-monitor::messages.titles.system_info');
     }
 
     protected function getViewData(): array
     {
         return [
             'data' => $this->data,
+            'nodes' => $this->nodes,
+            'canViewNodes' => static::canViewNodes(),
         ];
     }
 }

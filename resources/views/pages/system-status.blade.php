@@ -1,338 +1,101 @@
+@php
+    $t = fn (string $k) => __('system-status-monitor::messages.' . $k);
+    $data = array_merge([
+        'cpu' => 0,
+        'cpu_cores' => 0,
+        'cpu_model' => 'Unknown',
+        'memory' => ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
+        'swap' => ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
+        'disk' => ['used' => 'N/A', 'total' => 'N/A', 'free' => 'N/A', 'percent' => 0],
+        'load' => ['1min' => 0, '5min' => 0, '15min' => 0],
+        'uptime' => 'Unknown',
+        'last_reboot' => 'Unknown',
+        'processes' => ['total' => 0],
+        'hostname' => 'Unknown',
+        'os' => 'Unknown',
+        'php_version' => PHP_VERSION,
+        'container' => false,
+    ], $data ?? []);
+
+    $grid3 = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;';
+@endphp
+
 <x-filament-panels::page>
-    @php
-        if (!isset($data) || !is_array($data)) {
-            $data = [];
-        }
-        
-        $translations = __('system-status-monitor::messages') ?? [];
-        
-        $t = [
-            'status' => $translations['status'] ?? [
-                'excellent' => 'Excellent',
-                'good' => 'Good',
-                'warning' => 'Warning',
-                'critical' => 'Critical',
-                'online' => 'Online',
-                'unavailable' => 'Unavailable'
-            ],
-            'titles' => $translations['titles'] ?? [
-                'cpu_usage' => 'CPU Usage',
-                'cpu_details' => 'CPU Details',
-                'memory_usage' => 'Memory Usage',
-                'disk_usage' => 'Disk Usage',
-                'load_average' => 'Load Average',
-                'system_info' => 'System Information',
-                'uptime' => 'Uptime',
-                'performance' => 'Performance',
-                'process_info' => 'Process Information',
-            ],
-            'labels' => $translations['labels'] ?? [
-                'os' => 'Operating System',
-                'php_version' => 'PHP Version',
-                'cores' => 'Cores',
-                'threads' => 'Threads',
-                'cpu_model' => 'CPU Model',
-                'swap_memory' => 'Virtual Memory',
-                'processes' => 'Processes',
-                'running' => 'Running',
-                'idle' => 'Idle',
-                'last_reboot' => 'Last Reboot',
-                'mounted_points' => 'Mounted Points',
-                'inode_usage' => 'Inode Usage',
-                'memory' => 'Memory',
-                'used' => 'Used',
-                'total' => 'Total',
-                'free' => 'Free',
-                'one_min' => '1 minute',
-                'five_min' => '5 minutes',
-                'fifteen_min' => '15 minutes',
-            ]
-        ];
-        
-        $data = array_merge([
-            'cpu' => 0,
-            'cpu_cores' => 0,
-            'cpu_model' => 'Unknown',
-            'memory' => ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
-            'swap' => ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0],
-            'disk' => ['used' => 'N/A', 'total' => 'N/A', 'free' => 'N/A', 'percent' => 0],
-            'load' => ['1min' => 0, '5min' => 0, '15min' => 0],
-            'uptime' => 'Unknown',
-            'last_reboot' => 'Unknown',
-            'processes' => ['total' => 0],
-            'hostname' => 'Unknown',
-            'os' => 'Unknown',
-            'php_version' => phpversion(),
-        ], $data);
-    @endphp
+    <div wire:poll.10s="refreshData" style="display: flex; flex-direction: column; gap: 1.5rem;">
 
-    @if(isset($data['error']))
-        <x-filament::section>
-            <x-slot name="heading">{{ $t['status']['unavailable'] ?? 'Unavailable' }}</x-slot>
-            <p class="text-sm text-red-600">{{ $data['error'] }}</p>
-        </x-filament::section>
-    @else
-        <!-- En-tête principal harmonisé Filament -->
-        <x-filament::section>
-            <x-slot name="heading">{{ config('app.name') }}</x-slot>
-            <x-slot name="description">
-                {{ $data['hostname'] ?? 'System' }} • {{ $data['os'] }}<br>
-                <span class="font-semibold">{{ $t['status']['online'] ?? 'Online' }}</span> — {{ date('d/m/Y H:i:s') }}
-            </x-slot>
-        </x-filament::section>
+        @if(isset($data['error']))
+            <x-filament::section>
+                <x-slot name="heading">{{ $t('status.unavailable') }}</x-slot>
+                <p class="text-sm text-red-600">{{ $data['error'] }}</p>
+            </x-filament::section>
+        @else
+            {{-- ========== Panel server ========== --}}
+            <x-filament::section>
+                <x-slot name="heading">{{ $t('titles.panel_server') }} — {{ $data['hostname'] }}</x-slot>
+                <x-slot name="description">
+                    {{ $data['os'] }}@if($data['container']) • Docker @endif • {{ $t('status.online') }} — {{ date('d/m/Y H:i:s') }}
+                </x-slot>
 
-        <!-- CPU Section -->
-        <x-filament::section>
-            <x-slot name="heading">{{ $t['titles']['cpu_details'] }}</x-slot>
-            <x-slot name="description">{{ $t['titles']['cpu_description'] ?? 'Real-time CPU information' }}</x-slot>
-
-            <!-- CPU Info Grid -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['cpu_model'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['cpu_model'] ?? 'Unknown' }}</p>
-                    </div>
-                </x-filament::card>
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['cores'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['cpu_cores'] ?? 'N/A' }}</p>
-                    </div>
-                </x-filament::card>
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['titles']['cpu_usage'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['cpu'] }}%</p>
-                    </div>
-                </x-filament::card>
-            </div>
-
-            <!-- CPU Usage Progress (widget style) -->
-            @php
-                $cpuStatus = $data['cpu'] > 80 ? 'danger' : ($data['cpu'] > 60 ? 'warning' : 'success');
-                $cpuColor = $cpuStatus === 'danger' ? 'rgb(220, 38, 38)' : ($cpuStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
-                $cpuLightBg = "color-mix(in srgb, {$cpuColor} 15%, transparent)";
-            @endphp
-            <div class="mt-4"></div>
-            <div class="space-y-2">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm font-medium">CPU</span>
-                    <span class="text-sm font-bold">{{ $data['cpu'] }}%</span>
-                </div>
-                <div
-                    class="relative rounded-full overflow-hidden w-full"
-                    style="height: 0.725rem; background-color: {{ $cpuLightBg }};"
-                    role="progressbar"
-                    aria-valuenow="{{ $data['cpu'] }}"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                >
-                    <div
-                        class="h-full rounded-full transition-all duration-300 ease-in-out"
-                        style="width: {{ $data['cpu'] }}%; background-color: {{ $cpuColor }};"
-                    ></div>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ $data['cpu'] > 80 ? $t['status']['critical'] : ($data['cpu'] > 60 ? $t['status']['warning'] : $t['status']['excellent']) }}
-                </p>
-            </div>
-
-            <!-- Load Average -->
-            <div class="mt-4"></div>
-            <div class="space-y-3">
-                <h3 class="text-sm font-medium">{{ $t['titles']['load_average'] }}</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                    <x-filament::card>
-                        <div class="text-center space-y-1">
-                            <p class="text-xs text-gray-600 dark:text-gray-400">{{ $t['labels']['one_min'] }}</p>
-                            <p class="text-lg font-bold">{{ $data['load']['1min'] }}</p>
+                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    {{-- CPU --}}
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        <div style="{{ $grid3 }}">
+                            @include('system-status-monitor::partials.stat', ['label' => $t('labels.cpu_model'), 'value' => $data['cpu_model']])
+                            @include('system-status-monitor::partials.stat', ['label' => $t('labels.cores'), 'value' => $data['cpu_cores']])
+                            @include('system-status-monitor::partials.stat', ['label' => $t('titles.load_average'), 'value' => $data['load']['1min'] . ' / ' . $data['load']['5min'] . ' / ' . $data['load']['15min']])
                         </div>
-                    </x-filament::card>
-                    <x-filament::card>
-                        <div class="text-center space-y-1">
-                            <p class="text-xs text-gray-600 dark:text-gray-400">{{ $t['labels']['five_min'] }}</p>
-                            <p class="text-lg font-bold">{{ $data['load']['5min'] }}</p>
-                        </div>
-                    </x-filament::card>
-                    <x-filament::card>
-                        <div class="text-center space-y-1">
-                            <p class="text-xs text-gray-600 dark:text-gray-400">{{ $t['labels']['fifteen_min'] }}</p>
-                            <p class="text-lg font-bold">{{ $data['load']['15min'] }}</p>
-                        </div>
-                    </x-filament::card>
+                        @include('system-status-monitor::partials.meter', ['label' => $t('titles.cpu_usage'), 'value' => $data['cpu']])
+                    </div>
+
+                    {{-- Mémoire --}}
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem;">
+                        @include('system-status-monitor::partials.meter', [
+                            'label' => $t('titles.memory_usage'),
+                            'value' => $data['memory']['percent'],
+                            'detail' => $data['memory']['used'] . ' / ' . $data['memory']['total'],
+                        ])
+                        @include('system-status-monitor::partials.meter', [
+                            'label' => $t('labels.swap_memory'),
+                            'value' => $data['swap']['percent'],
+                            'detail' => $data['swap']['used'] . ' / ' . $data['swap']['total'],
+                            'warn' => 50,
+                        ])
+                        @include('system-status-monitor::partials.meter', [
+                            'label' => $t('titles.disk_usage'),
+                            'value' => $data['disk']['percent'],
+                            'detail' => $data['disk']['used'] . ' / ' . $data['disk']['total'] . ' (' . $t('labels.free') . ': ' . ($data['disk']['free'] ?? 'N/A') . ')',
+                        ])
+                    </div>
+
+                    {{-- Système --}}
+                    <div style="{{ $grid3 }}">
+                        @include('system-status-monitor::partials.stat', ['label' => $t('labels.php_version'), 'value' => $data['php_version']])
+                        @include('system-status-monitor::partials.stat', ['label' => $t('labels.processes'), 'value' => ($data['processes']['total'] ?? 'N/A') . (isset($data['processes']['running']) ? ' (' . $data['processes']['running'] . ' ' . strtolower($t('labels.running')) . ')' : '')])
+                        @include('system-status-monitor::partials.stat', ['label' => $t('titles.uptime'), 'value' => $data['uptime']])
+                        @include('system-status-monitor::partials.stat', ['label' => $t('labels.last_reboot'), 'value' => $data['last_reboot']])
+                    </div>
                 </div>
-            </div>
-        </x-filament::section>
+            </x-filament::section>
+        @endif
 
-        <!-- Memory Section -->
-        <x-filament::section>
-            <x-slot name="heading">{{ $t['titles']['memory_usage'] }}</x-slot>
-            <x-slot name="description">{{ $t['titles']['memory_description'] ?? 'RAM and Virtual Memory statistics' }}</x-slot>
-            <!-- Memory Usage Progress (widget style) -->
-            @php
-                $memStatus = $data['memory']['percent'] > 80 ? 'danger' : ($data['memory']['percent'] > 60 ? 'warning' : 'success');
-                $memColor = $memStatus === 'danger' ? 'rgb(220, 38, 38)' : ($memStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
-                $memLightBg = "color-mix(in srgb, {$memColor} 15%, transparent)";
-            @endphp
-            <div class="mt-4"></div>
-            <div class="space-y-2">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm font-medium">Memory</span>
-                    <span class="text-sm font-bold">{{ $data['memory']['percent'] }}%</span>
-                </div>
-                <div
-                    class="relative rounded-full overflow-hidden w-full"
-                    style="height: 0.725rem; background-color: {{ $memLightBg }};"
-                    role="progressbar"
-                    aria-valuenow="{{ $data['memory']['percent'] }}"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                >
-                    <div
-                        class="h-full rounded-full transition-all duration-300 ease-in-out"
-                        style="width: {{ $data['memory']['percent'] }}%; background-color: {{ $memColor }};"
-                    ></div>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ $data['memory']['percent'] > 80 ? $t['status']['critical'] : ($data['memory']['percent'] > 60 ? $t['status']['warning'] : $t['status']['good']) }}
-                </p>
-            </div>
-            @php
-                $swapStatus = $data['swap']['percent'] > 50 ? 'warning' : 'success';
-                $swapColor = $swapStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)';
-                $swapLightBg = "color-mix(in srgb, {$swapColor} 15%, transparent)";
-            @endphp
-            <div class="mt-4"></div>
-            <div class="space-y-2">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm font-medium">Swap</span>
-                    <span class="text-sm font-bold">{{ $data['swap']['percent'] }}%</span>
-                </div>
-                <div
-                    class="relative rounded-full overflow-hidden w-full"
-                    style="height: 0.725rem; background-color: {{ $swapLightBg }};"
-                    role="progressbar"
-                    aria-valuenow="{{ $data['swap']['percent'] }}"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                >
-                    <div
-                        class="h-full rounded-full transition-all duration-300 ease-in-out"
-                        style="width: {{ $data['swap']['percent'] }}%; background-color: {{ $swapColor }};"
-                    ></div>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ $data['swap']['percent'] > 50 ? 'Swap active' : 'Swap inactive' }}
-                </p>
-            </div>
-        </x-filament::section>
+        {{-- ========== Nodes ========== --}}
+        @if($canViewNodes)
+            <x-filament::section>
+                <x-slot name="heading">{{ $t('titles.nodes') }}</x-slot>
+                <x-slot name="description">{{ $t('titles.nodes_description') }}</x-slot>
 
-        <!-- Disk Section -->
-        <x-filament::section>
-            <x-slot name="heading">{{ $t['titles']['disk_usage'] }}</x-slot>
-            <x-slot name="description">{{ $t['titles']['disk_description'] ?? 'Disk space information' }}</x-slot>
-
-            <!-- Disk Info Grid -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['used'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['disk']['used'] }}</p>
+                @if($this->nodesError)
+                    <p class="text-sm text-red-600">{{ $this->nodesError }}</p>
+                @elseif(count($nodes) === 0)
+                    <p class="text-sm" style="opacity: .65;">{{ $t('labels.no_nodes') }}</p>
+                @else
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                        @foreach($nodes as $node)
+                            @include('system-status-monitor::partials.node-card', ['node' => $node])
+                        @endforeach
                     </div>
-                </x-filament::card>
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['total'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['disk']['total'] }}</p>
-                    </div>
-                </x-filament::card>
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['free'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['disk']['free'] }}</p>
-                    </div>
-                </x-filament::card>
-            </div>
-
-            <!-- Disk Usage Progress (widget style) -->
-            @php
-                $diskStatus = $data['disk']['percent'] > 80 ? 'danger' : ($data['disk']['percent'] > 60 ? 'warning' : 'success');
-                $diskColor = $diskStatus === 'danger' ? 'rgb(220, 38, 38)' : ($diskStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
-                $diskLightBg = "color-mix(in srgb, {$diskColor} 15%, transparent)";
-            @endphp
-            <div class="mt-4"></div>
-            <div class="space-y-2">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm font-medium">Disk</span>
-                    <span class="text-sm font-bold">{{ $data['disk']['percent'] }}%</span>
-                </div>
-                <div
-                    class="relative rounded-full overflow-hidden w-full"
-                    style="height: 0.725rem; background-color: {{ $diskLightBg }};"
-                    role="progressbar"
-                    aria-valuenow="{{ $data['disk']['percent'] }}"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                >
-                    <div
-                        class="h-full rounded-full transition-all duration-300 ease-in-out"
-                        style="width: {{ $data['disk']['percent'] }}%; background-color: {{ $diskColor }};"
-                    ></div>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ $data['disk']['percent'] > 80 ? $t['status']['critical'] : ($data['disk']['percent'] > 60 ? $t['status']['warning'] : $t['status']['good']) }}
-                </p>
-            </div>
-        </x-filament::section>
-
-        <!-- System Info Section -->
-        <x-filament::section>
-            <x-slot name="heading">{{ $t['titles']['system_info'] }}</x-slot>
-            <x-slot name="description">{{ $t['titles']['system_description'] ?? 'System details and information' }}</x-slot>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['os'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['os'] }}</p>
-                    </div>
-                </x-filament::card>
-
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['hostname'] ?? 'Hostname' }}</p>
-                        <p class="text-lg font-bold">{{ $data['hostname'] }}</p>
-                    </div>
-                </x-filament::card>
-
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['php_version'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['php_version'] }}</p>
-                    </div>
-                </x-filament::card>
-
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['processes'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['processes']['total'] ?? 'N/A' }}</p>
-                    </div>
-                </x-filament::card>
-
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['titles']['uptime'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['uptime'] }}</p>
-                    </div>
-                </x-filament::card>
-
-                <x-filament::card>
-                    <div class="space-y-2">
-                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ $t['labels']['last_reboot'] }}</p>
-                        <p class="text-lg font-bold">{{ $data['last_reboot'] }}</p>
-                    </div>
-                </x-filament::card>
-            </div>
-        </x-filament::section>    @endif
+                @endif
+            </x-filament::section>
+        @endif
+    </div>
 </x-filament-panels::page>

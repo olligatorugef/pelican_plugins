@@ -4,410 +4,485 @@ namespace Xolli\SystemStatusMonitor\Services;
 
 class SystemInfoService
 {
+    private static function isWindows(): bool
+    {
+        return strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+    }
+
+    private static function readFile(string $path): ?string
+    {
+        $content = @file_get_contents($path);
+
+        return $content === false ? null : $content;
+    }
+
     /**
-     * Get CPU usage percentage
+     * Run a shell command safely (shell_exec can be disabled / return null).
      */
+    private static function run(string $command): ?string
+    {
+        if (!function_exists('shell_exec')) {
+            return null;
+        }
+
+        $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+        if (in_array('shell_exec', $disabled, true)) {
+            return null;
+        }
+
+        $output = @shell_exec($command);
+
+        return is_string($output) && $output !== '' ? $output : null;
+    }
+
+    private static function percent(int|float $used, int|float $total): float
+    {
+        if ($total <= 0) {
+            return 0.0;
+        }
+
+        return round(max(0, min(100, ($used / $total) * 100)), 2);
+    }
+
+    private static function memoryArray(int $used, int $total): array
+    {
+        $used = max(0, $used);
+        $total = max(0, $total);
+
+        return [
+            'used' => self::formatBytes($used),
+            'total' => self::formatBytes($total),
+            'free' => self::formatBytes(max(0, $total - $used)),
+            'used_bytes' => $used,
+            'total_bytes' => $total,
+            'percent' => self::percent($used, $total),
+        ];
+    }
+
+    private static function emptyMemory(): array
+    {
+        return ['used' => 'N/A', 'total' => 'N/A', 'free' => 'N/A', 'used_bytes' => 0, 'total_bytes' => 0, 'percent' => 0.0];
+    }
+
+    // ------------------------------------------------------------------
+    // CPU
+    // ------------------------------------------------------------------
+
     public static function getCpuUsage(): float
     {
-        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        if (self::isWindows()) {
             return self::getCpuUsageWindows();
         }
-        return self::getCpuUsageLinux();
-    }
 
-    /**
-     * Get CPU usage for Linux using /proc/stat
-     */
-    private static function getCpuUsageLinux(): float
-    {
         try {
-            // Try /proc/stat method first
             return self::getCpuUsageFromProcStat();
-        } catch (\Exception $e) {
-            // Fallback to top command
-            try {
-                $output = shell_exec('top -bn2 -d 0.5 | grep "Cpu(s)"');
-                if ($output) {
-                    // Try multiple regex patterns
-                    if (preg_match('/(\d+\.?\d*)\s*%us/', $output, $matches)) {
-                        return (float)$matches[1];
-                    }
-                    if (preg_match('/us,\s*(\d+\.?\d*)/', $output, $matches)) {
-                        return (float)$matches[1];
-                    }
-                }
-            } catch (\Exception $e2) {
-                // Final fallback
-                try {
-                    $output = shell_exec('ps aux | awk \'BEGIN{sum=0} {sum+=$3} END{print sum}\'');
-                    if ($output) {
-                        return min((float)$output, 100.0);
-                    }
-                } catch (\Exception $e3) {
-                    return 0;
-                }
+        } catch (\Throwable) {
+            // Fallback: load average relative to core count
+            $load = function_exists('sys_getloadavg') ? @sys_getloadavg() : false;
+            if (is_array($load)) {
+                return round(min(100, ($load[0] / max(1, self::getCpuCores())) * 100), 2);
             }
         }
-        return 0;
+
+        return 0.0;
     }
 
-    /**
-     * Get CPU usage from /proc/stat (most accurate method)
-     */
     private static function getCpuUsageFromProcStat(): float
     {
-        if (!file_exists('/proc/stat')) {
-            throw new \Exception('/proc/stat not available');
+        $stat1 = self::readFile('/proc/stat');
+        if ($stat1 === null) {
+            throw new \RuntimeException('/proc/stat not available');
         }
 
-        $stat1 = file_get_contents('/proc/stat');
-        sleep(1);
-        $stat2 = file_get_contents('/proc/stat');
+        usleep(250000);
+        $stat2 = self::readFile('/proc/stat');
 
         $cpu1 = self::parseProcStat($stat1);
-        $cpu2 = self::parseProcStat($stat2);
+        $cpu2 = self::parseProcStat($stat2 ?? '');
 
         if ($cpu1 === null || $cpu2 === null) {
-            throw new \Exception('Failed to parse /proc/stat');
+            throw new \RuntimeException('Failed to parse /proc/stat');
         }
 
-        $active1 = $cpu1['user'] + $cpu1['nice'] + $cpu1['system'];
-        $total1 = $active1 + $cpu1['idle'] + $cpu1['iowait'];
+        $totalDelta = $cpu2['total'] - $cpu1['total'];
+        $idleDelta = $cpu2['idle'] - $cpu1['idle'];
 
-        $active2 = $cpu2['user'] + $cpu2['nice'] + $cpu2['system'];
-        $total2 = $active2 + $cpu2['idle'] + $cpu2['iowait'];
-
-        $activeDelta = $active2 - $active1;
-        $totalDelta = $total2 - $total1;
-
-        if ($totalDelta == 0) {
-            return 0;
+        if ($totalDelta <= 0) {
+            return 0.0;
         }
 
-        return round(($activeDelta / $totalDelta) * 100, 2);
+        return round(max(0, min(100, (($totalDelta - $idleDelta) / $totalDelta) * 100)), 2);
     }
 
     /**
-     * Parse /proc/stat line
+     * @return array{total: int, idle: int}|null
      */
-    private static function parseProcStat($content): ?array
+    private static function parseProcStat(string $content): ?array
     {
-        $lines = explode("\n", $content);
-        foreach ($lines as $line) {
-            if (strpos($line, 'cpu ') === 0) {
+        foreach (explode("\n", $content) as $line) {
+            if (str_starts_with($line, 'cpu ')) {
                 $parts = preg_split('/\s+/', trim($line));
-                if (count($parts) >= 5) {
-                    return [
-                        'user' => (int)$parts[1],
-                        'nice' => (int)$parts[2],
-                        'system' => (int)$parts[3],
-                        'idle' => (int)$parts[4],
-                        'iowait' => isset($parts[5]) ? (int)$parts[5] : 0,
-                    ];
+                if (count($parts) < 5) {
+                    return null;
                 }
+
+                // user nice system idle iowait irq softirq steal (guest is already in user)
+                $values = array_map('intval', array_slice($parts, 1, 8));
+                $values = array_pad($values, 8, 0);
+
+                return [
+                    'total' => array_sum($values),
+                    'idle' => $values[3] + $values[4],
+                ];
             }
         }
+
         return null;
     }
 
-    /**
-     * Get CPU usage for Windows using WMI PercentProcessorTime
-     */
     private static function getCpuUsageWindows(): float
     {
-        try {
-            $output = shell_exec('wmic path win32_perfformatteddata_perfos_processor where name="Total" get PercentProcessorTime /value');
-            if ($output && preg_match('/PercentProcessorTime=(\d+)/', $output, $matches)) {
-                return (float)$matches[1];
-            }
-        } catch (\Exception $e) {
-            return 0;
+        $output = self::run('wmic path win32_perfformatteddata_perfos_processor where name="_Total" get PercentProcessorTime /value');
+        if ($output && preg_match('/PercentProcessorTime=(\d+)/', $output, $matches)) {
+            return (float) $matches[1];
         }
-        return 0;
+
+        return 0.0;
     }
 
-    /**
-     * Get CPU cores count
-     */
     public static function getCpuCores(): int
     {
-        try {
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $output = shell_exec('wmic os get numberofprocessors');
-                if (preg_match('/(\d+)/', $output, $matches)) {
-                    return (int)$matches[1];
-                }
-            } else {
-                $output = shell_exec('nproc');
-                if ($output) {
-                    return (int)trim($output);
-                }
+        if (self::isWindows()) {
+            $output = self::run('wmic cpu get NumberOfLogicalProcessors /value');
+            if ($output && preg_match('/=(\d+)/', $output, $matches)) {
+                return max(1, (int) $matches[1]);
             }
-        } catch (\Exception $e) {
+
             return 1;
         }
-        return 1;
+
+        $cpuinfo = self::readFile('/proc/cpuinfo');
+        if ($cpuinfo !== null) {
+            $count = preg_match_all('/^processor\s*:/m', $cpuinfo);
+            if ($count > 0) {
+                return $count;
+            }
+        }
+
+        $output = self::run('nproc');
+
+        return $output ? max(1, (int) trim($output)) : 1;
     }
 
-    /**
-     * Get CPU model
-     */
     public static function getCpuModel(): string
     {
-        try {
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $output = shell_exec('wmic cpu get name');
-                if (preg_match('/Intel|AMD|ARM/', $output, $matches)) {
-                    return trim(str_replace('Name', '', $output));
-                }
-            } else {
-                $output = shell_exec("cat /proc/cpuinfo | grep 'model name' | head -1");
-                if ($output && preg_match('/:\s*(.+)/', $output, $matches)) {
+        if (self::isWindows()) {
+            $output = self::run('wmic cpu get name /value');
+            if ($output && preg_match('/Name=(.+)/', $output, $matches)) {
+                return trim($matches[1]);
+            }
+
+            return 'Unknown';
+        }
+
+        $cpuinfo = self::readFile('/proc/cpuinfo');
+        if ($cpuinfo !== null) {
+            foreach (['model name', 'Model', 'Hardware', 'cpu model'] as $key) {
+                if (preg_match('/^' . preg_quote($key, '/') . '\s*:\s*(.+)$/mi', $cpuinfo, $matches)) {
                     return trim($matches[1]);
                 }
             }
-        } catch (\Exception $e) {
-            return 'Unknown';
         }
+
         return 'Unknown';
     }
 
+    // ------------------------------------------------------------------
+    // Memory
+    // ------------------------------------------------------------------
+
     /**
-     * Get memory usage
+     * Parse /proc/meminfo (values in kB) into bytes.
+     *
+     * @return array<string, int>
      */
+    private static function readMeminfo(): array
+    {
+        $content = self::readFile('/proc/meminfo');
+        $info = [];
+
+        if ($content === null) {
+            return $info;
+        }
+
+        foreach (explode("\n", $content) as $line) {
+            if (preg_match('/^(\w+):\s+(\d+)\s*kB/i', $line, $m)) {
+                $info[$m[1]] = (int) $m[2] * 1024;
+            }
+        }
+
+        return $info;
+    }
+
+    /**
+     * Memory limit/usage of the current cgroup (Docker). Returns null if the container is not limited.
+     *
+     * @return array{used: int, total: int}|null
+     */
+    private static function readCgroupMemory(int $hostTotal): ?array
+    {
+        // cgroup v2
+        $max = self::readFile('/sys/fs/cgroup/memory.max');
+        if ($max !== null) {
+            $max = trim($max);
+            $current = self::readFile('/sys/fs/cgroup/memory.current');
+            if (ctype_digit($max) && $current !== null && ctype_digit(trim($current))) {
+                $inactive = 0;
+                $stat = self::readFile('/sys/fs/cgroup/memory.stat');
+                if ($stat !== null && preg_match('/^inactive_file\s+(\d+)/m', $stat, $m)) {
+                    $inactive = (int) $m[1];
+                }
+
+                return self::validCgroup((int) $max, (int) trim($current) - $inactive, $hostTotal);
+            }
+        }
+
+        // cgroup v1
+        $limit = self::readFile('/sys/fs/cgroup/memory/memory.limit_in_bytes');
+        $usage = self::readFile('/sys/fs/cgroup/memory/memory.usage_in_bytes');
+        if ($limit !== null && $usage !== null && ctype_digit(trim($limit)) && ctype_digit(trim($usage))) {
+            $inactive = 0;
+            $stat = self::readFile('/sys/fs/cgroup/memory/memory.stat');
+            if ($stat !== null && preg_match('/^total_inactive_file\s+(\d+)/m', $stat, $m)) {
+                $inactive = (int) $m[1];
+            }
+
+            return self::validCgroup((int) trim($limit), (int) trim($usage) - $inactive, $hostTotal);
+        }
+
+        return null;
+    }
+
+    private static function validCgroup(int $limit, int $used, int $hostTotal): ?array
+    {
+        // "unlimited" is reported as "max" or a gigantic number; ignore limits above host RAM
+        if ($limit <= 0 || ($hostTotal > 0 && $limit >= $hostTotal)) {
+            return null;
+        }
+
+        return ['used' => max(0, $used), 'total' => $limit];
+    }
+
     public static function getMemoryUsage(): array
     {
-        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        if (self::isWindows()) {
             return self::getMemoryUsageWindows();
         }
-        return self::getMemoryUsageLinux();
-    }
 
-    /**
-     * Get memory usage for Linux
-     */
-    private static function getMemoryUsageLinux(): array
-    {
-        try {
-            $output = shell_exec('free -b | grep Mem');
-            if ($output && preg_match('/(\d+)\s+(\d+)/', $output, $matches)) {
-                $total = (int)$matches[1];
-                $used = (int)$matches[2];
-                $percent = $total > 0 ? round(($used / $total) * 100, 2) : 0;
-                return [
-                    'used' => self::formatBytes($used),
-                    'total' => self::formatBytes($total),
-                    'percent' => $percent,
-                ];
+        $info = self::readMeminfo();
+
+        if (isset($info['MemTotal']) && $info['MemTotal'] > 0) {
+            $total = $info['MemTotal'];
+
+            // Container memory limit takes priority (Docker)
+            if ($cgroup = self::readCgroupMemory($total)) {
+                return self::memoryArray($cgroup['used'], $cgroup['total']);
             }
-        } catch (\Exception $e) {
-            return ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0];
+
+            if (isset($info['MemAvailable'])) {
+                $used = $total - $info['MemAvailable'];
+            } else {
+                $used = $total - ($info['MemFree'] ?? 0) - ($info['Buffers'] ?? 0) - ($info['Cached'] ?? 0);
+            }
+
+            return self::memoryArray($used, $total);
         }
-        return ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0];
+
+        // Fallback: `free -b`
+        $output = self::run('free -b');
+        if ($output && preg_match('/^Mem:\s+(\d+)\s+(\d+)/mi', $output, $m)) {
+            return self::memoryArray((int) $m[2], (int) $m[1]);
+        }
+
+        return self::emptyMemory();
     }
 
-    /**
-     * Get memory usage for Windows
-     */
     private static function getMemoryUsageWindows(): array
     {
-        try {
-            $output = shell_exec('wmic os get totalvisiblememorylength,freephysicalmemory');
-            if (preg_match('/(\d+)\s+(\d+)/', $output, $matches)) {
-                $total = (int)$matches[1] * 1024;
-                $free = (int)$matches[2] * 1024;
-                $used = $total - $free;
-                $percent = $total > 0 ? round(($used / $total) * 100, 2) : 0;
-                return [
-                    'used' => self::formatBytes($used),
-                    'total' => self::formatBytes($total),
-                    'percent' => $percent,
-                ];
-            }
-        } catch (\Exception $e) {
-            return ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0];
+        $output = self::run('wmic os get TotalVisibleMemorySize,FreePhysicalMemory /value');
+        if ($output
+            && preg_match('/TotalVisibleMemorySize=(\d+)/', $output, $t)
+            && preg_match('/FreePhysicalMemory=(\d+)/', $output, $f)) {
+            $total = (int) $t[1] * 1024;
+            $free = (int) $f[1] * 1024;
+
+            return self::memoryArray($total - $free, $total);
         }
-        return ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0];
+
+        return self::emptyMemory();
     }
 
-    /**
-     * Get swap memory usage
-     */
     public static function getSwapMemory(): array
     {
-        try {
-            $output = shell_exec('free -b | grep Swap');
-            if ($output && preg_match('/(\d+)\s+(\d+)/', $output, $matches)) {
-                $total = (int)$matches[1];
-                $used = (int)$matches[2];
-                $percent = $total > 0 ? round(($used / $total) * 100, 2) : 0;
-                return [
-                    'used' => self::formatBytes($used),
-                    'total' => self::formatBytes($total),
-                    'percent' => $percent,
-                ];
-            }
-        } catch (\Exception $e) {
-            return ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0];
+        if (self::isWindows()) {
+            return self::emptyMemory();
         }
-        return ['used' => 'N/A', 'total' => 'N/A', 'percent' => 0];
+
+        $info = self::readMeminfo();
+        if (isset($info['SwapTotal'])) {
+            $total = $info['SwapTotal'];
+            $used = $total - ($info['SwapFree'] ?? 0);
+
+            return self::memoryArray($used, $total);
+        }
+
+        $output = self::run('free -b');
+        if ($output && preg_match('/^Swap:\s+(\d+)\s+(\d+)/mi', $output, $m)) {
+            return self::memoryArray((int) $m[2], (int) $m[1]);
+        }
+
+        return self::emptyMemory();
     }
 
-    /**
-     * Get disk usage
-     */
-    public static function getDiskUsage($path = '/'): array
+    // ------------------------------------------------------------------
+    // Disk
+    // ------------------------------------------------------------------
+
+    public static function getDiskUsage(?string $path = null): array
     {
-        try {
-            $total = disk_total_space($path);
-            $free = disk_free_space($path);
-            $used = $total - $free;
-            $percent = $total > 0 ? round(($used / $total) * 100, 2) : 0;
+        $path ??= function_exists('base_path') ? base_path() : (self::isWindows() ? 'C:' : '/');
 
-            return [
-                'used' => self::formatBytes($used),
-                'total' => self::formatBytes($total),
-                'free' => self::formatBytes($free),
-                'percent' => $percent,
-            ];
-        } catch (\Exception $e) {
-            return ['used' => 'N/A', 'total' => 'N/A', 'free' => 'N/A', 'percent' => 0];
+        $total = @disk_total_space($path);
+        $free = @disk_free_space($path);
+
+        if ($total === false || $free === false || $total <= 0) {
+            return ['used' => 'N/A', 'total' => 'N/A', 'free' => 'N/A', 'percent' => 0.0];
         }
+
+        $used = $total - $free;
+
+        return [
+            'used' => self::formatBytes($used),
+            'total' => self::formatBytes($total),
+            'free' => self::formatBytes($free),
+            'percent' => self::percent($used, $total),
+        ];
     }
 
-    /**
-     * Get load average
-     */
+    // ------------------------------------------------------------------
+    // Load / uptime / processes
+    // ------------------------------------------------------------------
+
     public static function getLoadAverage(): array
     {
-        try {
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                return ['1' => 0, '5' => 0, '15' => 0];
-            }
-
-            $loads = sys_getloadavg();
-            return [
-                '1' => round($loads[0], 2),
-                '5' => round($loads[1], 2),
-                '15' => round($loads[2], 2),
-            ];
-        } catch (\Exception $e) {
+        if (self::isWindows() || !function_exists('sys_getloadavg')) {
             return ['1' => 0, '5' => 0, '15' => 0];
         }
+
+        $loads = @sys_getloadavg();
+        if (!is_array($loads)) {
+            return ['1' => 0, '5' => 0, '15' => 0];
+        }
+
+        return [
+            '1' => round($loads[0], 2),
+            '5' => round($loads[1], 2),
+            '15' => round($loads[2], 2),
+        ];
     }
 
-    /**
-     * Get system uptime
-     */
+    private static function getUptimeSeconds(): ?int
+    {
+        if (self::isWindows()) {
+            $output = self::run('wmic os get lastbootuptime /value');
+            if ($output && preg_match('/=(\d{14})/', $output, $m)) {
+                $boot = \DateTime::createFromFormat('YmdHis', $m[1]);
+
+                return $boot ? max(0, time() - $boot->getTimestamp()) : null;
+            }
+
+            return null;
+        }
+
+        $uptime = self::readFile('/proc/uptime');
+        if ($uptime !== null && preg_match('/^(\d+(?:\.\d+)?)/', $uptime, $m)) {
+            return (int) $m[1];
+        }
+
+        return null;
+    }
+
     public static function getUptime(): string
     {
-        try {
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $output = shell_exec('wmic os get lastbootuptime');
-                if (preg_match('/(\d{14})/', $output, $matches)) {
-                    $timestamp = strtotime($matches[1]);
-                    $uptime = time() - $timestamp;
-                } else {
-                    return 'Unknown';
-                }
-            } else {
-                $output = shell_exec('cat /proc/uptime');
-                if ($output && preg_match('/(\d+)/', $output, $matches)) {
-                    $uptime = (int)$matches[1];
-                } else {
-                    return 'Unknown';
-                }
-            }
-
-            $days = floor($uptime / 86400);
-            $hours = floor(($uptime % 86400) / 3600);
-            $minutes = floor(($uptime % 3600) / 60);
-
-            return "{$days}d {$hours}h {$minutes}m";
-        } catch (\Exception $e) {
+        $uptime = self::getUptimeSeconds();
+        if ($uptime === null) {
             return 'Unknown';
         }
+
+        $days = intdiv($uptime, 86400);
+        $hours = intdiv($uptime % 86400, 3600);
+        $minutes = intdiv($uptime % 3600, 60);
+
+        return "{$days}d {$hours}h {$minutes}m";
     }
 
-    /**
-     * Get last reboot time
-     */
     public static function getLastReboot(): string
     {
-        try {
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $output = shell_exec('wmic os get lastbootuptime');
-                if (preg_match('/(\d{14})/', $output, $matches)) {
-                    $timestamp = strtotime($matches[1]);
-                    return date('Y-m-d H:i:s', $timestamp);
-                }
-            } else {
-                $output = shell_exec('who -b');
-                // Recherche d'une date/heure dans la sortie
-                if ($output && preg_match('/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/', $output, $matches)) {
-                    return $matches[1] . ' ' . $matches[2];
-                }
-                // Fallback : calcul à partir de /proc/uptime
-                if (file_exists('/proc/uptime')) {
-                    $uptime = file_get_contents('/proc/uptime');
-                    if ($uptime && preg_match('/^(\d+\.?\d*)/', $uptime, $umatch)) {
-                        $boot = time() - (int)$umatch[1];
-                        return date('Y-m-d H:i:s', $boot);
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            return 'Unknown';
-        }
-        return 'Unknown';
+        $uptime = self::getUptimeSeconds();
+
+        return $uptime === null ? 'Unknown' : date('Y-m-d H:i:s', time() - $uptime);
     }
 
-    /**
-     * Get process count
-     */
     public static function getProcessCount(): array
     {
-        try {
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $total = shell_exec('wmic process list brief | find /c /v ""');
-                return ['total' => (int)$total, 'running' => (int)$total];
-            } else {
-                $output = shell_exec('ps aux | wc -l');
-                $total = (int)$output - 2;
+        if (self::isWindows()) {
+            $output = self::run('tasklist /fo csv /nh');
+            $total = $output ? count(array_filter(explode("\n", trim($output)))) : 0;
 
-                $running = shell_exec("ps aux | grep -c ' S '");
-
-                return ['total' => max(0, $total), 'running' => max(0, (int)$running)];
-            }
-        } catch (\Exception $e) {
-            return ['total' => 0, 'running' => 0];
+            return ['total' => $total, 'running' => $total];
         }
+
+        $total = 0;
+        $running = 0;
+
+        if (is_dir('/proc')) {
+            foreach (@scandir('/proc') ?: [] as $entry) {
+                if (!ctype_digit($entry)) {
+                    continue;
+                }
+                $total++;
+
+                $stat = self::readFile("/proc/{$entry}/stat");
+                if ($stat !== null && preg_match('/\)\s+(\w)\s/', $stat, $m) && $m[1] === 'R') {
+                    $running++;
+                }
+            }
+        }
+
+        return ['total' => $total, 'running' => $running];
     }
 
-    /**
-     * Get system hostname
-     */
     public static function getHostname(): string
     {
-        try {
-            return gethostname() ?: 'Unknown';
-        } catch (\Exception $e) {
-            return 'Unknown';
-        }
+        return gethostname() ?: 'Unknown';
     }
 
     /**
-     * Get all system info
+     * Whether the panel itself runs inside a container.
      */
+    public static function isContainer(): bool
+    {
+        return !self::isWindows() && (file_exists('/.dockerenv') || file_exists('/run/.containerenv'));
+    }
+
+    // ------------------------------------------------------------------
+    // Aggregates
+    // ------------------------------------------------------------------
+
     public static function getSystemInfo(): array
     {
-        $cpuInfo = self::getLoadAverage();
-        $loadAverage = [
-            '1min' => $cpuInfo['1'] ?? 0,
-            '5min' => $cpuInfo['5'] ?? 0,
-            '15min' => $cpuInfo['15'] ?? 0,
-        ];
-        
+        $load = self::getLoadAverage();
+
         return [
             'cpu' => self::getCpuUsage(),
             'cpu_cores' => self::getCpuCores(),
@@ -415,26 +490,28 @@ class SystemInfoService
             'memory' => self::getMemoryUsage(),
             'swap' => self::getSwapMemory(),
             'disk' => self::getDiskUsage(),
-            'load' => $loadAverage,
+            'load' => [
+                '1min' => $load['1'] ?? 0,
+                '5min' => $load['5'] ?? 0,
+                '15min' => $load['15'] ?? 0,
+            ],
             'uptime' => self::getUptime(),
             'last_reboot' => self::getLastReboot(),
             'processes' => self::getProcessCount(),
             'hostname' => self::getHostname(),
             'os' => php_uname('s'),
+            'php_version' => PHP_VERSION,
+            'container' => self::isContainer(),
         ];
     }
 
-    /**
-     * Format bytes to human-readable format
-     */
-    public static function formatBytes($bytes, $precision = 2): string
+    public static function formatBytes($bytes, int $precision = 2): string
     {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-        $bytes = max($bytes, 0);
-        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+        $bytes = max((float) $bytes, 0);
+        $pow = $bytes > 0 ? (int) floor(log($bytes, 1024)) : 0;
         $pow = min($pow, count($units) - 1);
-        $bytes /= (1 << (10 * $pow));
 
-        return round($bytes, $precision) . ' ' . $units[$pow];
+        return round($bytes / (1024 ** $pow), $precision) . ' ' . $units[$pow];
     }
 }

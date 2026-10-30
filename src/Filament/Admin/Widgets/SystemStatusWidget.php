@@ -1,8 +1,10 @@
 <?php
 
-namespace Xolli\SystemStatusMonitor\Filament\admin\Widgets;
+namespace Xolli\SystemStatusMonitor\Filament\Admin\Widgets;
 
 use Filament\Widgets\Widget;
+use Xolli\SystemStatusMonitor\Filament\Admin\Pages\SystemStatus;
+use Xolli\SystemStatusMonitor\Services\NodeStatsService;
 use Xolli\SystemStatusMonitor\Services\SystemInfoService;
 
 class SystemStatusWidget extends Widget
@@ -13,22 +15,33 @@ class SystemStatusWidget extends Widget
 
     protected string $view = 'system-status-monitor::widgets.system-status';
 
+    protected int|string|array $columnSpan = 'full';
+
     protected function getViewData(): array
     {
-        try {
-            $systemInfo = SystemInfoService::getSystemInfo();
+        $data = ['panel' => null, 'nodes' => [], 'error' => null];
 
-            return [
-                'cpu' => $systemInfo['cpu'],
-                'memory' => $systemInfo['memory'],
-                'disk' => $systemInfo['disk'],
-                'load' => $systemInfo['load'],
-                'uptime' => $systemInfo['uptime'],
+        try {
+            $info = SystemInfoService::getSystemInfo();
+            $data['panel'] = [
+                'cpu' => $info['cpu'],
+                'memory' => $info['memory'],
+                'disk' => $info['disk'],
+                'load' => $info['load'],
+                'uptime' => $info['uptime'],
             ];
-        } catch (\Exception $e) {
-            return [
-                'error' => 'Unable to retrieve system information',
-            ];
+        } catch (\Throwable) {
+            $data['error'] = 'Unable to retrieve system information';
         }
+
+        if (SystemStatus::canViewNodes()) {
+            try {
+                $data['nodes'] = NodeStatsService::all();
+            } catch (\Throwable) {
+                $data['nodes'] = [];
+            }
+        }
+
+        return $data;
     }
 }

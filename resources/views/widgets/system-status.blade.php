@@ -1,98 +1,41 @@
+@php $t = fn (string $k) => __('system-status-monitor::messages.' . $k); @endphp
+
 <x-filament-widgets::widget>
-    @php
-        $cpu = $cpu ?? 0;
-        $memory = $memory ?? ['percent' => 0];
-        $disk = $disk ?? ['percent' => 0];
-        $t = __('system-status-monitor::messages');
-    @endphp
-
     <x-filament::section>
-        <x-slot name="heading">
-            {{ $t['titles']['widget_title'] ?? 'System Status' }}
-        </x-slot>
+        <x-slot name="heading">{{ $t('titles.widget_title') }}</x-slot>
 
-        @if(isset($error))
-            <div class="text-red-600 text-sm font-semibold">{{ $error }}</div>
-        @else
-            <div class="space-y-4">
-                <!-- CPU Metric -->
-                @php
-                    $cpuStatus = $cpu > 80 ? 'danger' : ($cpu > 60 ? 'warning' : 'success');
-                    $cpuColor = $cpuStatus === 'danger' ? 'rgb(220, 38, 38)' : ($cpuStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
-                    $cpuLightBg = "color-mix(in srgb, {$cpuColor} 15%, transparent)";
-                @endphp
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm font-medium">CPU</span>
-                        <span class="text-sm font-bold">{{ $cpu }}%</span>
-                    </div>
-                    <div
-                        class="relative rounded-full overflow-hidden w-full"
-                        style="height: 0.725rem; background-color: {{ $cpuLightBg }};"
-                        role="progressbar"
-                        aria-valuenow="{{ $cpu }}"
-                        aria-valuemin="0"
-                        aria-valuemax="100"
-                    >
-                        <div
-                            class="h-full rounded-full transition-all duration-300 ease-in-out"
-                            style="width: {{ $cpu }}%; background-color: {{ $cpuColor }};"
-                        ></div>
+        <div wire:poll.10s style="display: flex; flex-direction: column; gap: 1.5rem;">
+            @if($error)
+                <div class="text-red-600 text-sm font-semibold">{{ $error }}</div>
+            @elseif($panel)
+                <div>
+                    <h3 class="text-sm font-semibold" style="margin-bottom: 0.75rem;">{{ $t('titles.panel_server') }}</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                        @include('system-status-monitor::partials.meter', ['label' => 'CPU', 'value' => $panel['cpu']])
+                        @include('system-status-monitor::partials.meter', [
+                            'label' => $t('labels.memory'),
+                            'value' => $panel['memory']['percent'],
+                            'detail' => $panel['memory']['used'] . ' / ' . $panel['memory']['total'],
+                        ])
+                        @include('system-status-monitor::partials.meter', [
+                            'label' => $t('labels.disk'),
+                            'value' => $panel['disk']['percent'],
+                            'detail' => $panel['disk']['used'] . ' / ' . $panel['disk']['total'],
+                        ])
                     </div>
                 </div>
+            @endif
 
-                <!-- Memory Metric -->
-                @php
-                    $memStatus = $memory['percent'] > 80 ? 'danger' : ($memory['percent'] > 60 ? 'warning' : 'success');
-                    $memColor = $memStatus === 'danger' ? 'rgb(220, 38, 38)' : ($memStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
-                    $memLightBg = "color-mix(in srgb, {$memColor} 15%, transparent)";
-                @endphp
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm font-medium">Memory</span>
-                        <span class="text-sm font-bold">{{ $memory['percent'] }}%</span>
-                    </div>
-                    <div
-                        class="relative rounded-full overflow-hidden w-full"
-                        style="height: 0.725rem; background-color: {{ $memLightBg }};"
-                        role="progressbar"
-                        aria-valuenow="{{ $memory['percent'] }}"
-                        aria-valuemin="0"
-                        aria-valuemax="100"
-                    >
-                        <div
-                            class="h-full rounded-full transition-all duration-300 ease-in-out"
-                            style="width: {{ $memory['percent'] }}%; background-color: {{ $memColor }};"
-                        ></div>
+            @if(count($nodes))
+                <div>
+                    <h3 class="text-sm font-semibold" style="margin-bottom: 0.75rem;">{{ $t('titles.nodes') }}</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+                        @foreach($nodes as $node)
+                            @include('system-status-monitor::partials.node-card', ['node' => $node])
+                        @endforeach
                     </div>
                 </div>
-
-                <!-- Disk Metric -->
-                @php
-                    $diskStatus = $disk['percent'] > 80 ? 'danger' : ($disk['percent'] > 60 ? 'warning' : 'success');
-                    $diskColor = $diskStatus === 'danger' ? 'rgb(220, 38, 38)' : ($diskStatus === 'warning' ? 'rgb(245, 158, 11)' : 'rgb(5, 150, 105)');
-                    $diskLightBg = "color-mix(in srgb, {$diskColor} 15%, transparent)";
-                @endphp
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm font-medium">Disk</span>
-                        <span class="text-sm font-bold">{{ $disk['percent'] }}%</span>
-                    </div>
-                    <div
-                        class="relative rounded-full overflow-hidden w-full"
-                        style="height: 0.725rem; background-color: {{ $diskLightBg }};"
-                        role="progressbar"
-                        aria-valuenow="{{ $disk['percent'] }}"
-                        aria-valuemin="0"
-                        aria-valuemax="100"
-                    >
-                        <div
-                            class="h-full rounded-full transition-all duration-300 ease-in-out"
-                            style="width: {{ $disk['percent'] }}%; background-color: {{ $diskColor }};"
-                        ></div>
-                    </div>
-                </div>
-            </div>
-        @endif
+            @endif
+        </div>
     </x-filament::section>
 </x-filament-widgets::widget>

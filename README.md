@@ -10,11 +10,14 @@ A real-time system monitoring plugin for Pelican Panel. Display CPU, memory, dis
 - **Load Average** - System load (1, 5, 15 min)
 - **Uptime** - Server uptime and last reboot
 - **System Info** - OS, PHP, Hostname, Processes
+- **Nodes** - CPU, RAM, Swap, Disk, Load and online status of every node (via Wings)
 
 ## What's Included
 
 - Admin dashboard page with full metrics
-- Quick widget summary (CPU, Memory, Disk)
+- Quick widget summary (CPU, Memory, Disk) for the panel **and** every node
+- Auto-refresh every 10 seconds
+- Docker aware: reads `/proc` and cgroup limits instead of parsing `free`
 - Color-coded status (Green / Yellow / Red)
 - Responsive design
 - English & French translations
@@ -44,7 +47,8 @@ The plugin provides:
 
 - Linux server (or Windows with WMI support)
 - PHP 8.1+
-- Commands: `nproc`, `free`, `uptime`, `ps`
+- No external commands needed on Linux (`/proc` is read directly)
+- Node stats require the `viewList node` permission (root admins always have it)
 
 ## Troubleshooting
 

@@ -4,6 +4,9 @@ return [
     'navigation_label' => 'État Système',
 
     'titles' => [
+        'panel_server' => 'Serveur du panel',
+        'nodes' => 'Nodes',
+        'nodes_description' => 'Utilisation des ressources de chaque node (Wings) en temps réel',
         'widget_title' => 'État Système',
         'cpu_usage' => 'Utilisation CPU',
         'cpu_details' => 'Détails CPU',
@@ -21,6 +24,8 @@ return [
     ],
 
     'labels' => [
+        'disk' => 'Disque',
+        'no_nodes' => 'Aucun node configuré.',
         'os' => 'Système d\'Exploitation',
         'hostname' => 'Nom d\'Hôte',
         'php_version' => 'Version PHP',
@@ -44,6 +49,9 @@ return [
     ],
 
     'status' => [
+        'node_online' => 'En ligne',
+        'node_offline' => 'Hors ligne',
+        'node_unreachable' => 'Node injoignable',
         'excellent' => 'Excellent',
         'good' => 'Bon',
         'warning' => 'Attention',

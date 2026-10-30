@@ -4,6 +4,9 @@ return [
     'navigation_label' => 'System Status',
 
     'titles' => [
+        'panel_server' => 'Panel Server',
+        'nodes' => 'Nodes',
+        'nodes_description' => 'Live resource usage reported by each node (Wings)',
         'widget_title' => 'System Status',
         'cpu_usage' => 'CPU Usage',
         'cpu_details' => 'CPU Details',
@@ -21,6 +24,8 @@ return [
     ],
 
     'labels' => [
+        'disk' => 'Disk',
+        'no_nodes' => 'No nodes configured.',
         'os' => 'Operating System',
         'hostname' => 'Hostname',
         'php_version' => 'PHP Version',
@@ -44,6 +49,9 @@ return [
     ],
 
     'status' => [
+        'node_online' => 'Online',
+        'node_offline' => 'Offline',
+        'node_unreachable' => 'Node unreachable',
         'excellent' => 'Excellent',
         'good' => 'Good',
         'warning' => 'Warning',
