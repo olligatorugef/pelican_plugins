@@ -45,17 +45,16 @@ The plugin provides:
 
 ## Requirements
 
-- Linux server (or Windows with WMI support)
+- Linux server (including Docker)
 - PHP 8.1+
-- No external commands needed on Linux (`/proc` is read directly)
+- No external commands are executed: metrics are read from `/proc` and cgroups
 - Node stats require the `viewList node` permission (root admins always have it)
 
 ## Troubleshooting
 
 **"Unable to load system information"**
 - Verify it's a Linux server
-- Check required commands are available
-- Ensure PHP has execute permissions
+- Make sure `/proc` is readable by the PHP user
 
 ---
 

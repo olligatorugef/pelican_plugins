@@ -2,37 +2,19 @@
 
 namespace Xolli\SystemStatusMonitor\Services;
 
+/**
+ * Collects system metrics for the machine running the panel.
+ *
+ * Only native PHP functions and the /proc and /sys pseudo filesystems are used
+ * (no external command is ever executed). Linux and Docker are supported.
+ */
 class SystemInfoService
 {
-    private static function isWindows(): bool
-    {
-        return strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
-    }
-
     private static function readFile(string $path): ?string
     {
         $content = @file_get_contents($path);
 
         return $content === false ? null : $content;
-    }
-
-    /**
-     * Run a shell command safely (shell_exec can be disabled / return null).
-     */
-    private static function run(string $command): ?string
-    {
-        if (!function_exists('shell_exec')) {
-            return null;
-        }
-
-        $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
-        if (in_array('shell_exec', $disabled, true)) {
-            return null;
-        }
-
-        $output = @shell_exec($command);
-
-        return is_string($output) && $output !== '' ? $output : null;
     }
 
     private static function percent(int|float $used, int|float $total): float
@@ -70,10 +52,6 @@ class SystemInfoService
 
     public static function getCpuUsage(): float
     {
-        if (self::isWindows()) {
-            return self::getCpuUsageWindows();
-        }
-
         try {
             return self::getCpuUsageFromProcStat();
         } catch (\Throwable) {
@@ -126,7 +104,7 @@ class SystemInfoService
                     return null;
                 }
 
-                // user nice system idle iowait irq softirq steal (guest is already in user)
+                // user nice system idle iowait irq softirq steal (guest is already counted in user)
                 $values = array_map('intval', array_slice($parts, 1, 8));
                 $values = array_pad($values, 8, 0);
 
@@ -140,27 +118,8 @@ class SystemInfoService
         return null;
     }
 
-    private static function getCpuUsageWindows(): float
-    {
-        $output = self::run('wmic path win32_perfformatteddata_perfos_processor where name="_Total" get PercentProcessorTime /value');
-        if ($output && preg_match('/PercentProcessorTime=(\d+)/', $output, $matches)) {
-            return (float) $matches[1];
-        }
-
-        return 0.0;
-    }
-
     public static function getCpuCores(): int
     {
-        if (self::isWindows()) {
-            $output = self::run('wmic cpu get NumberOfLogicalProcessors /value');
-            if ($output && preg_match('/=(\d+)/', $output, $matches)) {
-                return max(1, (int) $matches[1]);
-            }
-
-            return 1;
-        }
-
         $cpuinfo = self::readFile('/proc/cpuinfo');
         if ($cpuinfo !== null) {
             $count = preg_match_all('/^processor\s*:/m', $cpuinfo);
@@ -169,22 +128,11 @@ class SystemInfoService
             }
         }
 
-        $output = self::run('nproc');
-
-        return $output ? max(1, (int) trim($output)) : 1;
+        return 1;
     }
 
     public static function getCpuModel(): string
     {
-        if (self::isWindows()) {
-            $output = self::run('wmic cpu get name /value');
-            if ($output && preg_match('/Name=(.+)/', $output, $matches)) {
-                return trim($matches[1]);
-            }
-
-            return 'Unknown';
-        }
-
         $cpuinfo = self::readFile('/proc/cpuinfo');
         if ($cpuinfo !== null) {
             foreach (['model name', 'Model', 'Hardware', 'cpu model'] as $key) {
@@ -275,10 +223,6 @@ class SystemInfoService
 
     public static function getMemoryUsage(): array
     {
-        if (self::isWindows()) {
-            return self::getMemoryUsageWindows();
-        }
-
         $info = self::readMeminfo();
 
         if (isset($info['MemTotal']) && $info['MemTotal'] > 0) {
@@ -298,47 +242,18 @@ class SystemInfoService
             return self::memoryArray($used, $total);
         }
 
-        // Fallback: `free -b`
-        $output = self::run('free -b');
-        if ($output && preg_match('/^Mem:\s+(\d+)\s+(\d+)/mi', $output, $m)) {
-            return self::memoryArray((int) $m[2], (int) $m[1]);
-        }
-
-        return self::emptyMemory();
-    }
-
-    private static function getMemoryUsageWindows(): array
-    {
-        $output = self::run('wmic os get TotalVisibleMemorySize,FreePhysicalMemory /value');
-        if ($output
-            && preg_match('/TotalVisibleMemorySize=(\d+)/', $output, $t)
-            && preg_match('/FreePhysicalMemory=(\d+)/', $output, $f)) {
-            $total = (int) $t[1] * 1024;
-            $free = (int) $f[1] * 1024;
-
-            return self::memoryArray($total - $free, $total);
-        }
-
         return self::emptyMemory();
     }
 
     public static function getSwapMemory(): array
     {
-        if (self::isWindows()) {
-            return self::emptyMemory();
-        }
-
         $info = self::readMeminfo();
+
         if (isset($info['SwapTotal'])) {
             $total = $info['SwapTotal'];
             $used = $total - ($info['SwapFree'] ?? 0);
 
             return self::memoryArray($used, $total);
-        }
-
-        $output = self::run('free -b');
-        if ($output && preg_match('/^Swap:\s+(\d+)\s+(\d+)/mi', $output, $m)) {
-            return self::memoryArray((int) $m[2], (int) $m[1]);
         }
 
         return self::emptyMemory();
@@ -350,7 +265,7 @@ class SystemInfoService
 
     public static function getDiskUsage(?string $path = null): array
     {
-        $path ??= function_exists('base_path') ? base_path() : (self::isWindows() ? 'C:' : '/');
+        $path ??= function_exists('base_path') ? base_path() : '/';
 
         $total = @disk_total_space($path);
         $free = @disk_free_space($path);
@@ -375,11 +290,8 @@ class SystemInfoService
 
     public static function getLoadAverage(): array
     {
-        if (self::isWindows() || !function_exists('sys_getloadavg')) {
-            return ['1' => 0, '5' => 0, '15' => 0];
-        }
+        $loads = function_exists('sys_getloadavg') ? @sys_getloadavg() : false;
 
-        $loads = @sys_getloadavg();
         if (!is_array($loads)) {
             return ['1' => 0, '5' => 0, '15' => 0];
         }
@@ -393,18 +305,8 @@ class SystemInfoService
 
     private static function getUptimeSeconds(): ?int
     {
-        if (self::isWindows()) {
-            $output = self::run('wmic os get lastbootuptime /value');
-            if ($output && preg_match('/=(\d{14})/', $output, $m)) {
-                $boot = \DateTime::createFromFormat('YmdHis', $m[1]);
-
-                return $boot ? max(0, time() - $boot->getTimestamp()) : null;
-            }
-
-            return null;
-        }
-
         $uptime = self::readFile('/proc/uptime');
+
         if ($uptime !== null && preg_match('/^(\d+(?:\.\d+)?)/', $uptime, $m)) {
             return (int) $m[1];
         }
@@ -435,13 +337,6 @@ class SystemInfoService
 
     public static function getProcessCount(): array
     {
-        if (self::isWindows()) {
-            $output = self::run('tasklist /fo csv /nh');
-            $total = $output ? count(array_filter(explode("\n", trim($output)))) : 0;
-
-            return ['total' => $total, 'running' => $total];
-        }
-
         $total = 0;
         $running = 0;
 
@@ -472,7 +367,7 @@ class SystemInfoService
      */
     public static function isContainer(): bool
     {
-        return !self::isWindows() && (file_exists('/.dockerenv') || file_exists('/run/.containerenv'));
+        return file_exists('/.dockerenv') || file_exists('/run/.containerenv');
     }
 
     // ------------------------------------------------------------------
