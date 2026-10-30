@@ -17,7 +17,10 @@ class SystemStatusWidget extends Widget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected function getViewData(): array
+    /**
+     * @return array{panel: array<string, mixed>|null, nodes: array<int, array<string, mixed>>, error: string|null}
+     */
+    public function getStatusData(): array
     {
         $data = ['panel' => null, 'nodes' => [], 'error' => null];
 

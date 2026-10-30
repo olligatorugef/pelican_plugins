@@ -15,7 +15,7 @@
         'os' => 'Unknown',
         'php_version' => PHP_VERSION,
         'container' => false,
-    ], $data ?? []);
+    ], $this->data ?? []);
 
     $grid3 = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;';
 @endphp
@@ -79,18 +79,18 @@
         @endif
 
         {{-- ========== Nodes ========== --}}
-        @if($canViewNodes)
+        @if(\Xolli\SystemStatusMonitor\Filament\Admin\Pages\SystemStatus::canViewNodes())
             <x-filament::section>
                 <x-slot name="heading">{{ $t('titles.nodes') }}</x-slot>
                 <x-slot name="description">{{ $t('titles.nodes_description') }}</x-slot>
 
                 @if($this->nodesError)
                     <p class="text-sm text-red-600">{{ $this->nodesError }}</p>
-                @elseif(count($nodes) === 0)
+                @elseif(count($this->nodes) === 0)
                     <p class="text-sm" style="opacity: .65;">{{ $t('labels.no_nodes') }}</p>
                 @else
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
-                        @foreach($nodes as $node)
+                        @foreach($this->nodes as $node)
                             @include('system-status-monitor::partials.node-card', ['node' => $node])
                         @endforeach
                     </div>

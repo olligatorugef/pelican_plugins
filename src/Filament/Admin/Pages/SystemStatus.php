@@ -68,13 +68,4 @@ class SystemStatus extends Page
     {
         return __('system-status-monitor::messages.titles.system_info');
     }
-
-    protected function getViewData(): array
-    {
-        return [
-            'data' => $this->data,
-            'nodes' => $this->nodes,
-            'canViewNodes' => static::canViewNodes(),
-        ];
-    }
 }

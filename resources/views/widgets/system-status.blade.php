@@ -1,4 +1,7 @@
-@php $t = fn (string $k) => __('system-status-monitor::messages.' . $k); @endphp
+@php
+    $t = fn (string $k) => __('system-status-monitor::messages.' . $k);
+    ['panel' => $panel, 'nodes' => $nodes, 'error' => $error] = $this->getStatusData();
+@endphp
 
 <x-filament-widgets::widget>
     <x-filament::section>
